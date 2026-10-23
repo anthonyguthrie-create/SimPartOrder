@@ -20,13 +20,19 @@
     header h1 { margin: 0; font-size: 1.3rem; font-weight: 600; }
     header p { margin: 4px 0 0; font-size: 0.88rem; color: #94a3b8; }
     form { padding: 24px; }
+    
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .grid-ship { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .street-col, .attn-col { grid-column: 1 / -1; }
+    
     .field { display: flex; flex-direction: column; }
     label { font-weight: 600; font-size: 0.82rem; margin-bottom: 5px; color: #3c4043; }
     .req { color: #d93025; }
     input, select { padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.9rem; height: 38px; }
     input:focus, select:focus { outline: none; border-color: var(--primary); }
+    
     .section-head { font-weight: 600; font-size: 0.95rem; color: #1e293b; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 24px 0 12px; }
+    
     .part-row {
       display: grid;
       grid-template-columns: 2fr 3fr 2fr 90px 42px;
@@ -109,7 +115,13 @@
 
   <form id="partsForm">
     <!-- Header Details -->
+    <div class="section-head" style="margin-top: 0;">Request Details</div>
     <div class="grid">
+      <div class="field">
+        <label for="requestor">Requestor <span class="req">*</span></label>
+        <input type="text" id="requestor" placeholder="e.g. John Doe" required>
+      </div>
+
       <div class="field">
         <label for="center">Training Center <span class="req">*</span></label>
         <input type="text" id="center" placeholder="e.g. GKY, AUS, PHX" required>
@@ -133,6 +145,35 @@
           <option value="As soon as practical">As soon as practical</option>
           <option value="No Rush">No Rush</option>
         </select>
+      </div>
+    </div>
+
+    <!-- Shipping Address Details -->
+    <div class="section-head">Shipping Address</div>
+    <div class="grid-ship">
+      <div class="field street-col">
+        <label for="shipStreet">Street Address <span class="req">*</span></label>
+        <input type="text" id="shipStreet" placeholder="e.g. 5000 S Airport Rd, Hangar 4" required>
+      </div>
+
+      <div class="field">
+        <label for="shipCity">City <span class="req">*</span></label>
+        <input type="text" id="shipCity" placeholder="e.g. Arlington" required>
+      </div>
+
+      <div class="field">
+        <label for="shipState">State <span class="req">*</span></label>
+        <input type="text" id="shipState" placeholder="e.g. TX" required>
+      </div>
+
+      <div class="field">
+        <label for="shipZip">ZIP Code <span class="req">*</span></label>
+        <input type="text" id="shipZip" placeholder="e.g. 76018" required>
+      </div>
+
+      <div class="field attn-col">
+        <label for="shipAttn">Attention / Delivery Instructions</label>
+        <input type="text" id="shipAttn" placeholder="e.g. Attn: Sim Maintenance / Gate Code 1234 / Dock 2">
       </div>
     </div>
 
@@ -233,13 +274,11 @@
 
   document.getElementById("addPartBtn").addEventListener("click", addPartRow);
 
-  // Clears the banner and restores a fresh, single-row form
   function dismissAndReset() {
     if (successTimer) clearTimeout(successTimer);
     document.getElementById("successMsg").style.display = "none";
     document.getElementById("partsForm").reset();
 
-    // Reset parts container back to single clean row
     const container = document.getElementById("partsContainer");
     rowCounter = 1;
     container.innerHTML = `
@@ -274,7 +313,6 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Background Form Submission
   document.getElementById("partsForm").addEventListener("submit", async function(e) {
     e.preventDefault();
 
@@ -282,10 +320,19 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Sending...";
 
+    const requestor = document.getElementById("requestor").value.trim();
     const center = document.getElementById("center").value.trim();
     const sim = document.getElementById("sim").value.trim();
     const dr = document.getElementById("dr").value.trim();
     const urgency = document.getElementById("urgency").value;
+
+    const shipStreet = document.getElementById("shipStreet").value.trim();
+    const shipCity = document.getElementById("shipCity").value.trim();
+    const shipState = document.getElementById("shipState").value.trim();
+    const shipZip = document.getElementById("shipZip").value.trim();
+    const shipAttn = document.getElementById("shipAttn").value.trim();
+
+    const formattedAddress = `${shipStreet}, ${shipCity}, ${shipState} ${shipZip}`;
 
     let partsText = "";
     document.querySelectorAll(".part-row").forEach((r, i) => {
@@ -304,11 +351,14 @@
           "Accept": "application/json"
         },
         body: JSON.stringify({
-          _subject: `[${urgency}] Parts Request: ${center} - ${sim} (DR: ${dr})`,
+          _subject: `[${urgency}] Parts Request: ${center} - ${sim} (DR: ${dr}) - ${requestor}`,
+          "Requestor": requestor,
           "Training Center": center,
           "Simulator Number": sim,
           "DR Number": dr,
           "Urgency": urgency,
+          "Shipping Address": formattedAddress,
+          "Attention / Notes": shipAttn || "N/A",
           "Parts List": partsText
         })
       });
@@ -317,7 +367,6 @@
         document.getElementById("successMsg").style.display = "block";
         submitBtn.textContent = "Request Sent!";
 
-        // Stays for 1 minute (60,000 ms) unless dismissed earlier
         successTimer = setTimeout(() => {
           dismissAndReset();
         }, 60000);
@@ -327,7 +376,9 @@
       }
     } catch (err) {
       alert("Could not send in the background. Opening your default mail client as fallback...");
-      window.location.href = `mailto:${COORDINATOR_EMAIL}?subject=${encodeURIComponent(`[${urgency}] Parts Request: ${center} - ${sim} (DR: ${dr})`)}&body=${encodeURIComponent(partsText)}`;
+      const fallbackSubject = `[${urgency}] Parts Request: ${center} - ${sim} (DR: ${dr}) - ${requestor}`;
+      const fallbackBody = `Requestor: ${requestor}\nCenter: ${center}\nSim: ${sim}\nDR: ${dr}\nUrgency: ${urgency}\n\nShipping Address:\n${formattedAddress}\nAttn/Notes: ${shipAttn || "N/A"}\n\nParts:\n${partsText}`;
+      window.location.href = `mailto:${COORDINATOR_EMAIL}?subject=${encodeURIComponent(fallbackSubject)}&body=${encodeURIComponent(fallbackBody)}`;
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit Request";
     }
