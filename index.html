@@ -65,7 +65,38 @@
     }
     .btn-del:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
     .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
-    .success-msg { display: none; background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; padding: 14px; border-radius: 6px; margin-top: 15px; }
+    
+    /* Success Banner Styling */
+    .success-msg { 
+      display: none; 
+      background: #ecfdf5; 
+      border: 1px solid #6ee7b7; 
+      color: #065f46; 
+      padding: 16px 20px; 
+      border-radius: 6px; 
+      margin-top: 18px; 
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .success-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .btn-dismiss {
+      background: #059669;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-dismiss:hover { background: #047857; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
@@ -135,8 +166,14 @@
 
     <button type="button" id="addPartBtn" class="btn btn-add">+ Add Another Part</button>
 
+    <!-- Dismissable 1-Minute Success Alert -->
     <div class="success-msg" id="successMsg">
-      <b>✓ Request Dispatched:</b> Your order has been submitted to the Simulator Maintenance Coordinator. Please check SimTrack for updates.
+      <div class="success-inner">
+        <div>
+          <b>✓ Request Dispatched:</b> Your order has been submitted to the Simulator Maintenance Coordinator. Please check SimTrack for updates.
+        </div>
+        <button type="button" class="btn-dismiss" onclick="dismissAndReset()">Dismiss &amp; Submit Another</button>
+      </div>
     </div>
 
     <!-- Submission Action -->
@@ -150,6 +187,7 @@
 <script>
   const COORDINATOR_EMAIL = "anthony.guthrie@atpjets.com";
   let rowCounter = 1;
+  let successTimer = null;
 
   function addPartRow() {
     rowCounter++;
@@ -195,7 +233,48 @@
 
   document.getElementById("addPartBtn").addEventListener("click", addPartRow);
 
-  // Background Form Submission (No Gmail login required)
+  // Clears the banner and restores a fresh, single-row form
+  function dismissAndReset() {
+    if (successTimer) clearTimeout(successTimer);
+    document.getElementById("successMsg").style.display = "none";
+    document.getElementById("partsForm").reset();
+
+    // Reset parts container back to single clean row
+    const container = document.getElementById("partsContainer");
+    rowCounter = 1;
+    container.innerHTML = `
+      <div class="part-row" id="row_1">
+        <div class="field">
+          <label>Part Number</label>
+          <input type="text" name="pn" placeholder="If available">
+        </div>
+        <div class="field desc-col">
+          <label>Part Description <span class="req">*</span></label>
+          <input type="text" name="desc" placeholder="e.g. Rudder Load Cell" required>
+        </div>
+        <div class="field">
+          <label>Manufacturer / OEM</label>
+          <input type="text" name="oem" placeholder="If known">
+        </div>
+        <div class="field">
+          <label>Qty <span class="req">*</span></label>
+          <input type="number" name="qty" value="1" min="1" required>
+        </div>
+        <div class="del-col">
+          <button type="button" class="btn btn-del" title="Remove part" onclick="removeRow(1)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit Request";
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Background Form Submission
   document.getElementById("partsForm").addEventListener("submit", async function(e) {
     e.preventDefault();
 
@@ -236,13 +315,13 @@
 
       if (response.ok) {
         document.getElementById("successMsg").style.display = "block";
-        document.getElementById("partsForm").reset();
         submitBtn.textContent = "Request Sent!";
-        setTimeout(() => {
-          submitBtn.disabled = false;
-          submitBtn.textContent = "Submit Request";
-          document.getElementById("successMsg").style.display = "none";
-        }, 5000);
+
+        // Stays for 1 minute (60,000 ms) unless dismissed earlier
+        successTimer = setTimeout(() => {
+          dismissAndReset();
+        }, 60000);
+
       } else {
         throw new Error("Form submission failed");
       }
